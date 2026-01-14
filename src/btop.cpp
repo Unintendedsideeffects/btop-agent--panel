@@ -67,6 +67,7 @@ tab-size = 4
 #include "btop_shared.hpp"
 #include "btop_theme.hpp"
 #include "btop_tools.hpp"
+#include "btop_agent.hpp"
 
 using std::atomic;
 using std::cout;
@@ -655,6 +656,24 @@ namespace Runner {
 					}
 				}
 
+				//? AGENT
+				if (v_contains(conf.boxes, "agent")) {
+					try {
+						if (Global::debug) debug_timer("agent", collect_begin);
+
+						auto agents = Agent::collect(conf.no_update);
+
+						if (Global::debug) debug_timer("agent", draw_begin);
+
+						if (not pause_output) output += Agent::draw(agents, conf.force_redraw, conf.no_update);
+
+						if (Global::debug) debug_timer("agent", draw_done);
+					}
+					catch (const std::exception& e) {
+						throw std::runtime_error("Agent:: -> " + string{e.what()});
+					}
+				}
+
 			}
 			catch (const std::exception& e) {
 				Global::exit_error_msg = "Exception in runner thread -> " + string{e.what()};
@@ -1053,7 +1072,7 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 	}
 
 	if (not Config::set_boxes(Config::getS("shown_boxes"))) {
-		Config::set_boxes("cpu mem net proc");
+		Config::set_boxes("cpu mem net proc agent");
 		Config::set("shown_boxes", "cpu mem net proc"s);
 	}
 

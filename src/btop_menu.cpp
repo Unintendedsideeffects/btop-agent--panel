@@ -178,6 +178,11 @@ namespace Menu {
 		{"2", "Toggle MEM box."},
 		{"3", "Toggle NET box."},
 		{"4", "Toggle PROC box."},
+		{"A", "Toggle AGENT box."},
+		{"Tab", "Focus AGENT box when shown."},
+		{"Enter", "Attach/resume selected AGENT session."},
+		{"R", "Resume selected AGENT session."},
+		{"X", "Kill selected AGENT session."},
 		{"5", "Toggle GPU box."},
 		{"d", "Toggle disks view in MEM box."},
 		{"F2, o", "Shows options."},
@@ -282,7 +287,7 @@ namespace Menu {
 			{"shown_boxes",
 				"Manually set which boxes to show.",
 				"",
-				"Available values are \"cpu mem net proc\".",
+				"Available values are \"cpu mem net proc agent\".",
 			#ifdef GPU_SUPPORT
 				"Or \"gpu0\" through \"gpu5\" for GPU boxes.",
 			#endif

@@ -33,6 +33,7 @@ tab-size = 4
 #include "btop_shared.hpp"
 #include "btop_menu.hpp"
 #include "btop_draw.hpp"
+#include "btop_agent.hpp"
 
 using namespace Tools;
 using namespace std::literals; // for operator""s
@@ -214,6 +215,53 @@ namespace Input {
 	void process(const std::string_view key) {
 		if (key.empty()) return;
 		try {
+			if (key.starts_with("agent:")) {
+				const string session_id = string(key.substr(6));
+				if (Agent::register_click(session_id)) {
+					Term::restore();
+					Agent::attach_session(session_id);
+					Term::init();
+					Draw::calcSizes();
+					Runner::run("all", false, true);
+				}
+				return;
+			}
+
+			if (key == "tab" && Agent::shown) {
+				Agent::toggle_focus();
+				Draw::calcSizes();
+				Runner::run("all", true, true);
+				return;
+			}
+
+			if (Agent::shown && Agent::focused) {
+				if (Agent::handle_nav_key(key)) {
+					Runner::run("agent", true, true);
+					return;
+				}
+				if (key == "enter") {
+					Term::restore();
+					Agent::activate_selected();
+					Term::init();
+					Draw::calcSizes();
+					Runner::run("all", true, true);
+					return;
+				}
+				if (key == "r" || key == "R") {
+					Term::restore();
+					Agent::resume_selected();
+					Term::init();
+					Draw::calcSizes();
+					Runner::run("all", true, true);
+					return;
+				}
+				if (key == "x" || key == "X") {
+					Agent::kill_selected();
+					Draw::calcSizes();
+					Runner::run("all", true, true);
+					return;
+				}
+			}
 			auto filtering = Config::getB("proc_filtering");
 			auto vim_keys = Config::getB("vim_keys");
 			auto help_key = (vim_keys ? "H" : "h");
@@ -250,6 +298,17 @@ namespace Input {
 					atomic_wait(Runner::active);
 
 					if (not Config::toggle_box(boxes.at(intKey))) {
+						Menu::show(Menu::Menus::SizeError);
+						return;
+					}
+					Config::current_preset = -1;
+					Draw::calcSizes();
+					Runner::run("all", false, true);
+					return;
+				}
+				else if (key == "A") {
+					atomic_wait(Runner::active);
+					if (not Config::toggle_box("agent")) {
 						Menu::show(Menu::Menus::SizeError);
 						return;
 					}

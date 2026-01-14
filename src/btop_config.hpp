@@ -44,7 +44,7 @@ namespace Config {
 	const vector<string> valid_graph_symbols = { "braille", "block", "tty" };
 	const vector<string> valid_graph_symbols_def = { "default", "braille", "block", "tty" };
 	const vector<string> valid_boxes = {
-		"cpu", "mem", "net", "proc"
+		"cpu", "mem", "net", "proc", "agent"
 #ifdef GPU_SUPPORT
 		,"gpu0", "gpu1", "gpu2", "gpu3", "gpu4", "gpu5"
 #endif

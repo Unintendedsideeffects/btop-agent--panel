@@ -188,6 +188,9 @@ namespace Tools {
 	//* Replace ascii control characters with <replacement> in <str> and return new string
 	string replace_ascii_control(string str, const char replacement = ' ');
 
+	//* Execute command and return stdout (best-effort)
+	string exec_command(const string& command);
+
 	//* Capitalize <str>
 	inline string capitalize(string str) {
 		str.at(0) = toupper(str.at(0));

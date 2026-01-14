@@ -36,6 +36,7 @@ tab-size = 4
 #include "btop_shared.hpp"
 #include "btop_theme.hpp"
 #include "btop_tools.hpp"
+#include "btop_agent.hpp"
 
 using std::array;
 using std::clamp;
@@ -2174,6 +2175,7 @@ namespace Draw {
 		Mem::box.clear();
 		Net::box.clear();
 		Proc::box.clear();
+		Agent::box.clear();
 		Global::clock.clear();
 		Global::overlay.clear();
 		Runner::pause_output = false;
@@ -2184,11 +2186,11 @@ namespace Draw {
 
 		Input::mouse_mappings.clear();
 
-		Cpu::x = Mem::x = Net::x = Proc::x = 1;
-		Cpu::y = Mem::y = Net::y = Proc::y = 1;
-		Cpu::width = Mem::width = Net::width = Proc::width = 0;
-		Cpu::height = Mem::height = Net::height = Proc::height = 0;
-		Cpu::redraw = Mem::redraw = Net::redraw = Proc::redraw = true;
+		Cpu::x = Mem::x = Net::x = Proc::x = Agent::x = 1;
+		Cpu::y = Mem::y = Net::y = Proc::y = Agent::y = 1;
+		Cpu::width = Mem::width = Net::width = Proc::width = Agent::width = 0;
+		Cpu::height = Mem::height = Net::height = Proc::height = Agent::height = 0;
+		Cpu::redraw = Mem::redraw = Net::redraw = Proc::redraw = Agent::redraw = true;
 
 		Cpu::shown = boxes.contains("cpu");
 	#ifdef GPU_SUPPORT
@@ -2216,7 +2218,9 @@ namespace Draw {
 		Mem::shown = boxes.contains("mem");
 		Net::shown = boxes.contains("net");
 		Proc::shown = boxes.contains("proc");
+		Agent::shown = boxes.contains("agent");
 
+		const bool right_column = Proc::shown || Agent::shown;
 		//* Calculate and draw cpu box outlines
 		if (Cpu::shown) {
 			using namespace Cpu;
@@ -2230,7 +2234,7 @@ namespace Draw {
             const bool show_temp = (Config::getB("check_temp") and got_sensors);
 			width = round((double)Term::width * width_p / 100);
 		#ifdef GPU_SUPPORT
-			if (Gpu::shown != 0 and not (Mem::shown or Net::shown or Proc::shown)) {
+			if (Gpu::shown != 0 and not (Mem::shown or Net::shown or Proc::shown or Agent::shown)) {
 				height = Term::height - Gpu::total_height - gpus_extra_height;
 			} else {
 				height = max(8, (int)ceil((double)Term::height * (trim(boxes) == "cpu" ? 100 : height_p/(Gpu::shown+1) + (Gpu::shown != 0)*5) / 100));
@@ -2311,11 +2315,11 @@ namespace Draw {
 				int height = 0;
 				width = Term::width;
 				if (Cpu::shown)
-					if (not (Mem::shown or Net::shown or Proc::shown))
+					if (not (Mem::shown or Net::shown or Proc::shown or Agent::shown))
 						height = min_height;
 					else height = Cpu::height;
 				else
-					if (not (Mem::shown or Net::shown or Proc::shown))
+					if (not (Mem::shown or Net::shown or Proc::shown or Agent::shown))
 						height = (Term::height - total_height) / (Gpu::shown - i) + (i == 0) * ((Term::height - total_height) % (Gpu::shown - i));
 					else
 						height = max(min_height, (int)ceil((double)Term::height * height_p/Gpu::shown / 100));
@@ -2348,13 +2352,13 @@ namespace Draw {
 			auto swap_disk = Config::getB("swap_disk");
 			auto mem_graphs = Config::getB("mem_graphs");
 
-			width = round((double)Term::width * (Proc::shown ? width_p : 100) / 100);
+			width = round((double)Term::width * (right_column ? width_p : 100) / 100);
 		#ifdef GPU_SUPPORT
 			height = ceil((double)Term::height * (100 - Net::height_p * Net::shown*4 / ((Gpu::shown != 0 and Cpu::shown) + 4)) / 100) - Cpu::height - Gpu::total_height;
 		#else
 			height = ceil((double)Term::height * (100 - Cpu::height_p * Cpu::shown - Net::height_p * Net::shown) / 100) + 1;
 		#endif
-			x = (proc_left and Proc::shown) ? Term::width - width + 1: 1;
+			x = (proc_left and right_column) ? Term::width - width + 1: 1;
 			if (mem_below_net and Net::shown)
 		#ifdef GPU_SUPPORT
 				y = Term::height - height + 1 - (cpu_bottom ? Cpu::height : 0);
@@ -2412,13 +2416,13 @@ namespace Draw {
 		//* Calculate and draw net box outlines
 		if (Net::shown) {
 			using namespace Net;
-			width = round((double)Term::width * (Proc::shown ? width_p : 100) / 100);
+			width = round((double)Term::width * (right_column ? width_p : 100) / 100);
 		#ifdef GPU_SUPPORT
 			height = Term::height - Cpu::height - Gpu::total_height - Mem::height;
 		#else
 			height = Term::height - Cpu::height - Mem::height;
 		#endif
-			x = (proc_left and Proc::shown) ? Term::width - width + 1 : 1;
+			x = (proc_left and right_column) ? Term::width - width + 1 : 1;
 			if (mem_below_net and Mem::shown)
 			#ifdef GPU_SUPPORT
 				y = (cpu_bottom ? 1 : Cpu::height + 1) + Gpu::total_height;
@@ -2444,7 +2448,7 @@ namespace Draw {
 		}
 
 		//* Calculate and draw proc box outlines
-		if (Proc::shown) {
+		if (Proc::shown || Agent::shown) {
 			using namespace Proc;
 			width = Term::width - (Mem::shown ? Mem::width : (Net::shown ? Net::width : 0));
 		#ifdef GPU_SUPPORT
@@ -2458,8 +2462,37 @@ namespace Draw {
 		#else
 			y = (cpu_bottom and Cpu::shown) ? 1 : Cpu::height + 1;
 		#endif
-			select_max = height - 3;
-			box = createBox(x, y, width, height, Theme::c("proc_box"), true, "proc", "", 4);
+			int right_height = height;
+			if (Proc::shown && Agent::shown) {
+				int agent_height = clamp((int)round((double)right_height * 0.30), Agent::min_height, right_height - Proc::min_height);
+				int proc_height = right_height - agent_height;
+				if (proc_height < Proc::min_height) {
+					proc_height = Proc::min_height;
+					agent_height = right_height - proc_height;
+				}
+				if (Proc::shown) {
+					Proc::height = proc_height;
+					Proc::x = x;
+					Proc::y = y;
+					Proc::width = width;
+					select_max = Proc::height - 3;
+					Proc::box = createBox(x, y, width, Proc::height, Theme::c("proc_box"), true, "proc", "", 4);
+				}
+				Agent::height = agent_height;
+				Agent::x = x;
+				Agent::y = y + proc_height;
+				Agent::width = width;
+				Agent::box = createBox(Agent::x, Agent::y, Agent::width, Agent::height, Theme::c("proc_box"), true, "agent", "", 5);
+			} else if (Proc::shown) {
+				select_max = height - 3;
+				Proc::box = createBox(x, y, width, height, Theme::c("proc_box"), true, "proc", "", 4);
+			} else if (Agent::shown) {
+				Agent::height = height;
+				Agent::x = x;
+				Agent::y = y;
+				Agent::width = width;
+				Agent::box = createBox(x, y, width, height, Theme::c("proc_box"), true, "agent", "", 5);
+			}
 		}
 	}
 }

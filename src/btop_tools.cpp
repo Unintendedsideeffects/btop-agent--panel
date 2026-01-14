@@ -26,6 +26,7 @@ tab-size = 4
 #include <string_view>
 #include <utility>
 #include <cstdlib>
+#include <cstdio>
 
 #include <fcntl.h>
 #include <sys/ioctl.h>
@@ -37,6 +38,7 @@ tab-size = 4
 #include "btop_shared.hpp"
 #include "btop_tools.hpp"
 #include "btop_config.hpp"
+#include "btop_agent.hpp"
 
 using std::cout;
 using std::floor;
@@ -121,6 +123,7 @@ namespace Term {
         bool mem = boxes.find("mem") != string::npos;
         bool net = boxes.find("net") != string::npos;
         bool proc = boxes.find("proc") != string::npos;
+        bool agent = boxes.find("agent") != string::npos;
 	#ifdef GPU_SUPPORT
 		int gpu = 0;
         if (Gpu::count > 0)
@@ -130,14 +133,16 @@ namespace Term {
         int width = 0;
 		if (mem) width = Mem::min_width;
 		else if (net) width = Mem::min_width;
-		width += (proc ? Proc::min_width : 0);
+		if (proc || agent) width += max(Proc::min_width, Agent::min_width);
 		if (cpu and width < Cpu::min_width) width = Cpu::min_width;
 	#ifdef GPU_SUPPORT
 		if (gpu != 0 and width < Gpu::min_width) width = Gpu::min_width;
 	#endif
 
 		int height = (cpu ? Cpu::min_height : 0);
-		if (proc) height += Proc::min_height;
+		if (proc && agent) height += Proc::min_height + Agent::min_height;
+		else if (proc) height += Proc::min_height;
+		else if (agent) height += Agent::min_height;
 		else height += (mem ? Mem::min_height : 0) + (net ? Net::min_height : 0);
 	#ifdef GPU_SUPPORT
 		for (int i = 0; i < gpu; i++)
@@ -232,6 +237,21 @@ namespace Tools {
 		std::wcstombs(&str[0], &w_str[0], w_str.size());
 
 		return str;
+	}
+
+	string exec_command(const string& command) {
+		string output;
+		FILE* pipe = popen(command.c_str(), "r");
+		if (!pipe) {
+			Logger::error("exec_command() : Failed to run {}", command);
+			return output;
+		}
+		char buffer[256];
+		while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+			output.append(buffer);
+		}
+		pclose(pipe);
+		return output;
 	}
 
 	size_t wide_ulen(const std::string_view str) {
